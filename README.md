@@ -1,7 +1,20 @@
 # grpc-gateway
 example of https://grpc-ecosystem.github.io/grpc-gateway/
 
-# Tools
-go get github.com/grpc-ecosystem/grpc-gateway/v2/protoc-gen-grpc-gateway
-go get google.golang.org/protobuf/cmd/protoc-gen-go
-go get google.golang.org/grpc/cmd/protoc-gen-go-grpc
+# get tools
+make tools
+
+# generate proto api
+make protoc
+
+# run
+make run
+&
+curl -X POST -k http://localhost:8090/v1/example/echo -d '{"name": " hello"}'
+
+# build bin
+make build
+
+# run tests
+make test
+

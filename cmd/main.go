@@ -20,9 +20,9 @@ type server struct {
 	helloworldpb.UnimplementedGreeterServer
 }
 
-func NewServer() *server {
-	return &server{}
-}
+// func NewServer() *server {
+// 	return &server{}
+// }
 
 func (s *server) SayHello(ctx context.Context, in *helloworldpb.HelloRequest) (*helloworldpb.HelloReply, error) {
 	var token string
@@ -43,7 +43,7 @@ func (s *server) SayHello(ctx context.Context, in *helloworldpb.HelloRequest) (*
 
 func main() {
 	// Create a listener on TCP port
-	lis, err := net.Listen("tcp", ":8080")
+	lis, err := net.Listen("tcp", "0.0.0.0:8080") // nolint
 	if err != nil {
 		log.Fatalln("Failed to listen:", err)
 	}

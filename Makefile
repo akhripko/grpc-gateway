@@ -27,10 +27,10 @@ run:
 	go run ./cmd/main.go
 
 lint:
-	cd ./src && golangci-lint run
+	cd ./ && golangci-lint run
 
 test:
-	go test -cover -v `go list ./src/...`
+	go test -cover -v `go list ./...`
 
 test_integration:
 	INTEGRATION_TEST=YES go test -cover -v `go list ./...`

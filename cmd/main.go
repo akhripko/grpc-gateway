@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log"
 	"net"
@@ -12,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	helloworldpb "github.com/akhripko/grpc-gateway/api/helloworld"
 )
@@ -30,7 +30,8 @@ func (s *server) SayHello(ctx context.Context, in *helloworldpb.HelloRequest) (*
 	if ok {
 		h := headers["my-proto-header"]
 		if len(h) == 0 {
-			return nil, errors.New("my header was not provided")
+			st := status.New(400, "my-proto-header was not provided")
+			return &helloworldpb.HelloReply{}, st.Err()
 		}
 		token = h[0]
 		log.Println("my-proto-header: ", token)
@@ -113,14 +114,19 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 	// return Internal when Marshal failed
 	const fallback = `{"code": 13, "message": "failed to marshal error message"}`
 
-	w.Header().Del("Trailer")
-	w.Header().Del("Transfer-Encoding")
+	var errMsg Error
+	st, ok := status.FromError(err)
+	if ok {
+		errMsg.Code = int(st.Code())
+		errMsg.Message = st.Message()
+	} else {
+		errMsg.Code = http.StatusBadRequest
+		errMsg.Message = err.Error()
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 
-	buf, merr := marshaler.Marshal(Error{
-		Code:    100500,
-		Message: err.Error(),
-	})
+	buf, merr := marshaler.Marshal(errMsg)
 	if merr != nil {
 		log.Println("failed to marshal error message: ", merr)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -130,7 +136,7 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(errMsg.Code)
 	if _, err := w.Write(buf); err != nil {
 		grpclog.Infof("failed to write response: %v", err)
 	}

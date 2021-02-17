@@ -14,7 +14,9 @@ mod:
 
 protoc:
 	#protoc -I api api/hello_world.proto --go_out=plugins=grpc:api
-	protoc -I ./api \
+	protoc \
+      -I ./tools/ \
+      -I ./api/ \
       --go_out ./api --go_opt paths=source_relative \
       --go-grpc_out ./api --go-grpc_opt paths=source_relative \
       --grpc-gateway_out ./api --grpc-gateway_opt paths=source_relative \

@@ -1,6 +1,8 @@
 # grpc-gateway
 example of https://grpc-ecosystem.github.io/grpc-gateway/
 
+https://github.com/googleapis/googleapis/blob/master/google/api/http.proto
+
 # get tools
 make tools
 

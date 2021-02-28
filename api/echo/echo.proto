@@ -23,10 +23,16 @@ message EchoRequest {
   string name = 1;
   repeated string data1 = 2;
   repeated int32 data2 = 3;
+  EchoMessageId em_id = 4;
+}
+
+message EchoMessageId {
+  string id = 1;
 }
 
 message EchoResponse {
   string name = 1;
   repeated string data1 = 2;
   repeated int32 data2 = 3;
+  EchoMessageId em_id = 4;
 }

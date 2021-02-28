@@ -13,25 +13,25 @@ import (
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
-	helloworldpb "github.com/akhripko/grpc-gateway/api/helloworld"
+	pb "github.com/akhripko/grpc-gateway/api/echo"
 )
 
 type server struct {
-	helloworldpb.UnimplementedGreeterServer
+	pb.UnimplementedEchoServiceServer
 }
 
 // func NewServer() *server {
 // 	return &server{}
 // }
 
-func (s *server) SayHello(ctx context.Context, in *helloworldpb.HelloRequest) (*helloworldpb.HelloReply, error) {
+func (s *server) PostEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResponse, error) {
 	var token string
 	headers, ok := metadata.FromIncomingContext(ctx)
 	if ok {
 		h := headers["my-proto-header"]
 		if len(h) == 0 {
 			st := status.New(400, "my-proto-header was not provided")
-			return &helloworldpb.HelloReply{}, st.Err()
+			return &pb.EchoResponse{}, st.Err()
 		}
 		token = h[0]
 		log.Println("my-proto-header: ", token)
@@ -39,7 +39,19 @@ func (s *server) SayHello(ctx context.Context, in *helloworldpb.HelloRequest) (*
 	header := metadata.New(map[string]string{"my-srv-proto-header": "srv-" + token})
 	grpc.SendHeader(ctx, header)
 
-	return &helloworldpb.HelloReply{Message: in.Name + " world"}, nil
+	return &pb.EchoResponse{
+		Name:  in.Name,
+		Data1: in.Data1,
+		Data2: in.Data2,
+	}, nil
+}
+
+func (s *server) GetEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResponse, error) {
+	return &pb.EchoResponse{
+		Name:  in.Name,
+		Data1: in.Data1,
+		Data2: in.Data2,
+	}, nil
 }
 
 func main() {
@@ -52,7 +64,7 @@ func main() {
 	// Create a gRPC server object
 	s := grpc.NewServer()
 	// Attach the Greeter service to the server
-	helloworldpb.RegisterGreeterServer(s, &server{})
+	pb.RegisterEchoServiceServer(s, &server{})
 	// Serve gRPC server
 	log.Println("Serving gRPC on 0.0.0.0:8080")
 	go func() {
@@ -77,7 +89,7 @@ func main() {
 		runtime.WithErrorHandler(ErrorHandler))
 
 	// Register Greeter
-	err = helloworldpb.RegisterGreeterHandler(context.Background(), gwmux, conn)
+	err = pb.RegisterEchoServiceHandler(context.Background(), gwmux, conn)
 	if err != nil {
 		log.Fatalln("Failed to register gateway:", err)
 	}
@@ -136,7 +148,6 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 		return
 	}
 
-	w.WriteHeader(errMsg.Code)
 	if _, err := w.Write(buf); err != nil {
 		grpclog.Infof("failed to write response: %v", err)
 	}

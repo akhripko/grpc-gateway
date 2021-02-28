@@ -13,7 +13,8 @@ make protoc
 make run
 
 # send test http request
-curl -X POST -k http://localhost:8090/v1/example/echo -H 'My-Header:abc' -i -d '{"name": " hello"}'
+curl -X GET -k http://localhost:8090/v1/echo/abc\?data1=zxc\&data1=sdf\&data2=1\&data2=2\&data2=3 -i
+curl -X POST -k http://localhost:8090/v1/echo/abc -H 'My-Header:abc' -i -d '{"data1": ["zxc", "sdf"], "data2": [1, 2, 3]}'
 
 # build bin
 make build

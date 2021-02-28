@@ -20,7 +20,7 @@ protoc:
       --go_out ./api --go_opt paths=source_relative \
       --go-grpc_out ./api --go-grpc_opt paths=source_relative \
       --grpc-gateway_out ./api --grpc-gateway_opt paths=source_relative \
-      ./api/helloworld/hello_world.proto
+      ./api/echo/echo.proto
 
 build:
 	go build -o artifacts/svc ./cmd/main.go

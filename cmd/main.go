@@ -9,6 +9,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -30,7 +31,11 @@ func (s *server) PostEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResp
 	if ok {
 		h := headers["my-proto-header"]
 		if len(h) == 0 {
-			st := status.New(400, "my-proto-header was not provided")
+			st, _ := status.New(codes.PermissionDenied, "my-proto-header was not provided").
+				WithDetails(&pb.Error{
+					Code:    403,
+					Message: "My-Header was not provided",
+				})
 			return &pb.EchoResponse{}, st.Err()
 		}
 		token = h[0]
@@ -128,18 +133,17 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 	// return Internal when Marshal failed
 	const fallback = `{"code": 13, "message": "failed to marshal error message"}`
 
-	var errMsg Error
+	var errMsg = &pb.Error{
+		Code:    http.StatusInternalServerError,
+		Message: err.Error(),
+	}
 	st, ok := status.FromError(err)
 	if ok {
-		errMsg.Code = int(st.Code())
-		errMsg.Message = st.Message()
-	} else {
-		errMsg.Code = http.StatusBadRequest
-		errMsg.Message = err.Error()
+		errMsg = StatusToError(st)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-
+	w.WriteHeader(int(errMsg.Code))
 	buf, merr := marshaler.Marshal(errMsg)
 	if merr != nil {
 		log.Println("failed to marshal error message: ", merr)
@@ -153,4 +157,17 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 	if _, err := w.Write(buf); err != nil {
 		grpclog.Infof("failed to write response: %v", err)
 	}
+}
+
+func StatusToError(st *status.Status) *pb.Error {
+	if st == nil {
+		return nil
+	}
+	details := st.Details()
+	if len(details) != 0 {
+		if res, ok := details[0].(*pb.Error); ok {
+			return res
+		}
+	}
+	return &pb.Error{Code: 400, Message: st.Message()}
 }

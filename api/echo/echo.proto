@@ -36,3 +36,8 @@ message EchoResponse {
   repeated int32 data2 = 3;
   EchoMessageId em_id = 4;
 }
+
+message Error {
+  int32 code = 1;
+  string message = 2;
+}

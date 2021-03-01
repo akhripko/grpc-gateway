@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log"
 	"net"
@@ -10,7 +9,7 @@ import (
 
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
-	// "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
@@ -32,12 +31,12 @@ func (s *server) PostEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResp
 	if ok {
 		h := headers["my-proto-header"]
 		if len(h) == 0 {
-			// st, _ := status.New(codes.PermissionDenied, "my-proto-header was not provided").
-			// 	WithDetails(&pb.Error{
-			// 		Code:    403,
-			// 		Message: "My-Header was not provided",
-			// 	})
-			return &pb.EchoResponse{}, errors.New("blabla error text")
+			st, _ := status.New(codes.PermissionDenied, "my-proto-header was not provided").
+				WithDetails(&pb.Error{
+					Code:    403,
+					Message: "My-Header was not provided",
+				})
+			return &pb.EchoResponse{}, st.Err()
 		}
 		token = h[0]
 		log.Println("my-proto-header: ", token)

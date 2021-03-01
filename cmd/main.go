@@ -133,13 +133,16 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 	// return Internal when Marshal failed
 	const fallback = `{"code": 13, "message": "failed to marshal error message"}`
 
-	var errMsg = &pb.Error{
-		Code:    http.StatusInternalServerError,
-		Message: err.Error(),
-	}
+	var errMsg *pb.Error
 	st, ok := status.FromError(err)
 	if ok {
 		errMsg = StatusToError(st)
+	}
+	if errMsg == nil {
+		errMsg = &pb.Error{
+			Code:    http.StatusInternalServerError,
+			Message: err.Error(),
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -172,5 +172,5 @@ func StatusToError(st *status.Status) *pb.Error {
 			return res
 		}
 	}
-	return &pb.Error{Code: 400, Message: st.Message()}
+	return &pb.Error{Code: 500, Message: st.Message()}
 }

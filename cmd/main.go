@@ -45,19 +45,21 @@ func (s *server) PostEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResp
 	grpc.SendHeader(ctx, header)
 
 	return &pb.EchoResponse{
-		Name:  in.Name,
-		Data1: in.Data1,
-		Data2: in.Data2,
-		EmId:  in.EmId,
+		Name:    in.Name,
+		Data1:   in.Data1,
+		Data2:   in.Data2,
+		EmId:    in.EmId,
+		BoolVal: in.BoolVal,
 	}, nil
 }
 
 func (s *server) GetEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResponse, error) {
 	return &pb.EchoResponse{
-		Name:  in.Name,
-		Data1: in.Data1,
-		Data2: in.Data2,
-		EmId:  in.EmId,
+		Name:    in.Name,
+		Data1:   in.Data1,
+		Data2:   in.Data2,
+		EmId:    in.EmId,
+		BoolVal: in.BoolVal,
 	}, nil
 }
 

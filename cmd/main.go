@@ -6,7 +6,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 
+	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -26,10 +28,13 @@ type server struct {
 // }
 
 func (s *server) PostEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResponse, error) {
+	cookie := metadata.New(map[string]string{"set-cookie": "srvcookie:cookie_value"})
+	grpc.SetHeader(ctx, cookie)
+
 	var token string
 	headers, ok := metadata.FromIncomingContext(ctx)
 	if ok {
-		h := headers["my-proto-header"]
+		h := headers["my-header"]
 		if len(h) == 0 {
 			st, _ := status.New(codes.PermissionDenied, "my-proto-header was not provided").
 				WithDetails(&pb.Error{
@@ -39,10 +44,10 @@ func (s *server) PostEcho(ctx context.Context, in *pb.EchoRequest) (*pb.EchoResp
 			return &pb.EchoResponse{}, st.Err()
 		}
 		token = h[0]
-		log.Println("my-proto-header: ", token)
+		log.Println("my-header: ", token)
 	}
-	header := metadata.New(map[string]string{"my-srv-proto-header": "srv-" + token})
-	grpc.SendHeader(ctx, header)
+	header := metadata.New(map[string]string{"my-srv-header": "srv-" + token})
+	grpc.SetHeader(ctx, header)
 
 	return &pb.EchoResponse{
 		Name:    in.Name,
@@ -71,8 +76,9 @@ func main() {
 	}
 
 	// Create a gRPC server object
-	s := grpc.NewServer()
-	// Attach the Greeter service to the server
+	var s = grpc.NewServer(
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(addTraceIDUnaryInterceptor)),
+	)
 	pb.RegisterEchoServiceServer(s, &server{})
 	// Serve gRPC server
 	log.Println("Serving gRPC on 0.0.0.0:8080")
@@ -112,18 +118,38 @@ func main() {
 	log.Fatalln(gwServer.ListenAndServe())
 }
 
-func IncomingHeaderMatcher(key string) (string, bool) {
-	if key == "My-Header" {
-		return "My-Proto-Header", true
-	}
-	return runtime.DefaultHeaderMatcher(key)
+type void struct{}
+
+var member = void{}
+
+var outgoingHeaders = map[string]void{
+	"set-cookie":    member,
+	"x-trace-id":    member,
+	"my-srv-header": member,
 }
 
 func OutgoingHeaderMatcher(key string) (string, bool) {
-	if key == "my-srv-proto-header" {
-		return "My-Srv-Header", true
+	if key == "grpcgateway-content-type" {
+		return "", false
 	}
-	return "", false
+	lower := strings.ToLower(key)
+	if _, ok := outgoingHeaders[lower]; ok {
+		return lower, true
+	}
+	return runtime.DefaultHeaderMatcher(lower)
+}
+
+var incomingHeaders = map[string]void{
+	"x-trace-id": member,
+	"my-header":  member,
+}
+
+func IncomingHeaderMatcher(key string) (string, bool) {
+	lower := strings.ToLower(key)
+	if _, ok := incomingHeaders[lower]; ok {
+		return lower, true
+	}
+	return runtime.DefaultHeaderMatcher(key)
 }
 
 type Error struct {
@@ -138,8 +164,20 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 	st, _ := status.FromError(err)
 	errMsg := StatusToError(st)
 
+	md, ok := runtime.ServerMetadataFromContext(ctx)
+	if !ok {
+		grpclog.Infof("Failed to extract ServerMetadata from context")
+	}
+	if md.HeaderMD != nil {
+		trID := md.HeaderMD.Get("x-trace-id")
+		if len(trID) > 0 {
+			errMsg.TraceID = trID[0]
+		}
+	}
+	handleForwardResponseServerMetadata(w, md)
+
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(int(errMsg.Code))
+	w.WriteHeader(http.StatusInternalServerError)
 	buf, merr := marshaler.Marshal(errMsg)
 	if merr != nil {
 		log.Println("failed to marshal error message: ", merr)
@@ -155,6 +193,16 @@ func ErrorHandler(ctx context.Context, mux *runtime.ServeMux, marshaler runtime.
 	}
 }
 
+func handleForwardResponseServerMetadata(w http.ResponseWriter, md runtime.ServerMetadata) {
+	for k, vs := range md.HeaderMD {
+		if h, ok := OutgoingHeaderMatcher(k); ok {
+			for _, v := range vs {
+				w.Header().Add(h, v)
+			}
+		}
+	}
+}
+
 func StatusToError(st *status.Status) *pb.Error {
 	if st == nil {
 		return nil
@@ -166,4 +214,32 @@ func StatusToError(st *status.Status) *pb.Error {
 		}
 	}
 	return &pb.Error{Code: 500, Message: st.Message()}
+}
+
+func addTraceIDUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	// get id from metadata
+	id, ok := ReadMetadataValue(ctx, "x-trace-id")
+	if !ok {
+		return handler(ctx, req)
+	}
+	// set atomic trace id header
+	grpc.SetHeader(ctx, metadata.New(map[string]string{
+		"x-trace-id": id,
+	}))
+
+	return handler(ctx, req)
+}
+
+func ReadMetadataValue(ctx context.Context, key string) (string, bool) {
+	// get metadata from context
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", false
+	}
+	// get value from metadata
+	v, ok := md[key]
+	if !ok || len(v) == 0 {
+		return "", true
+	}
+	return v[0], true
 }

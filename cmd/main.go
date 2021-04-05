@@ -6,7 +6,9 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"path"
 	"strings"
+	"time"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
@@ -78,7 +80,7 @@ func main() {
 
 	// Create a gRPC server object
 	var s = grpc.NewServer(
-		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(addTraceIDUnaryInterceptor)),
+		grpc.UnaryInterceptor(grpc_middleware.ChainUnaryServer(addTraceIDUnaryInterceptor, LoggingUnaryInterceptor)),
 	)
 	pb.RegisterEchoServiceServer(s, &server{})
 	// Serve gRPC server
@@ -245,4 +247,30 @@ func ReadMetadataValue(ctx context.Context, key string) (string, bool) {
 		return "", true
 	}
 	return v[0], true
+}
+
+func LoggingUnaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+	// get id from metadata
+	traceID, ok := ReadMetadataValue(ctx, "x-trace-id")
+	if !ok {
+		traceID = "N/A"
+	}
+	// call handler
+	res, err := handler(ctx, req)
+	// build log record
+	st, _ := status.FromError(err)
+
+	service := path.Dir(info.FullMethod)[1:]
+	method := path.Base(info.FullMethod)
+
+	log.Println("grpc trace-id", traceID)
+	log.Println("grpc method", info.FullMethod)
+	log.Println("grpc service", service)
+	log.Println("grpc method", method)
+	log.Println("grpc latency", time.Since(start))
+	log.Println("grpc status", st.Code().String())
+	log.Println("grpc error", st.Message())
+
+	return res, err
 }

@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	pb "github.com/akhripko/grpc-gateway/api/echo"
+	"github.com/akhripko/grpc-gateway/pkg"
 )
 
 type server struct {
@@ -103,6 +104,8 @@ func main() {
 		runtime.WithOutgoingHeaderMatcher(OutgoingHeaderMatcher),
 		runtime.WithErrorHandler(ErrorHandler))
 
+	withLogging := pkg.WithLoggingMiddleware(gwmux)
+
 	// Register Greeter
 	err = pb.RegisterEchoServiceHandler(context.Background(), gwmux, conn)
 	if err != nil {
@@ -111,7 +114,7 @@ func main() {
 
 	gwServer := &http.Server{
 		Addr:    ":8090",
-		Handler: gwmux,
+		Handler: withLogging,
 	}
 
 	log.Println("Serving gRPC-Gateway on http://0.0.0.0:8090")
